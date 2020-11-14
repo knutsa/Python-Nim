@@ -1,0 +1,6 @@
+#x      y     w       h    color    text        font-size=30  txt-col=black  |   x,y,w,h expected in %. x,y gives center of button
+#start Buttons for different Modes. Has to be read in this order. Positions are free.
+50     25    30      10    88FF00  Enkel_Bot    30            .
+50     40    30      10    FF0000  Smart_Bot     30           .
+50     55    30      10    FF8800  Kompis        .            .
+50     70    30      10    000000  Avsluta       30           FFFFFF
