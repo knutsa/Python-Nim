@@ -1,0 +1,4 @@
+#x      y     w       h    color    text        font-size=30  txt-col=black  |   x,y,w,h expected in %. x,y gives center of button
+#Has to be read in this order. Positions are free. Text needs to be given with '_' instead of whitespace
+50     30    30      10    FF0000   Ange_Namn   .             .
+50     50    30      10    FFFFFF   _           .             .
