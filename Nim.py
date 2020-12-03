@@ -1,9 +1,10 @@
-import pygame, random, os
+import pygame, random, os, math
+from bots import Player, SmartBot, RandomBot
 #Constants
-START_LIST = (1,3,5,7)
+START_LIST =  (1,3,5,7, 9, 11, 4)
 #
 #Pygame Constants
-WIDTH, HEIGHT = 500, 500 #For the pygame display
+WIDTH, HEIGHT = 700, 700 #For the pygame display
 #colors
 WHITE, BLACK, RED, BLUE, GREEN, YELLOW = (255,255,255), (0,0,0), (255,0,0), (0,0,255), (0,255,0), (255,255,0)
 ORANGE, TURC, PINK, PURPLE = (255,125,0), (0,255,255), (255,125,125), (255,0,255)
@@ -14,101 +15,116 @@ SOURCE = "GUI_style"
 MENU_SRC = os.path.join(SOURCE, "menu_buttons.txt")
 YN_SRC = os.path.join(SOURCE, "yes_no.txt")
 NAME_INPUT_SRC = os.path.join(SOURCE, "name_input.txt")
+BOARD_SRC = os.path.join(SOURCE, "board_buttons.txt")
+HEADER_SRC = os.path.join(SOURCE, "headers.txt")
 #Logo
 LOGO_HEIGHT = (1*HEIGHT)//10
 LOGO_COLOR = (0,0,0)
 LOGO_TEXT_COLOR =  (255,255,255)
 LOGO_FONT_SIZE = 40
+#Board
+BOTTOM_HEIGHT = (2*HEIGHT)//10
+MARKER_MAX = 25
+
 
 #Player Classes
 #Each has method for making move, these take care of updating the list describing the piles.
 # As well as storing num of players and names
-class Player:
-    instances = 0
-    def __del__(self):
-        type(self).instances -= 1
-class RandomBot(Player):
-    "Computer Player making moves completely at random"
-    def __init__(self):
-        self.name = "Dum-Bot"
-        type(self).instances += 1
-    def make_move(self, piles):
-        """Attempts to make a move chosen at random.
-        Returns True if there exists a valid move and False otherwise."""
-        l = [i for i in range(len(piles)) if piles[i]]
-        if not l:
-            return False
-        ind = random.choice(l)
-        piles[ind] = random.randint(0,piles[ind]-1)
-        return True
-class SmartBot(Player):
-    "Computer Player always making a winning move in case it's possible"
-    pass
 class User(Player):
     "User Player. Makes moves based on instructions from the user."
-    def __init__(self, another_user=False, talking_through_GUI=False, dis=None):
+    def __init__(self, another_user=False, dis=None):
         type(self).instances += 1
         pre = "Spelare"+str(self.instances)+" " if another_user else ""
-        self.talking_through_GUI = talking_through_GUI
         #Get your name:
-        if not self.talking_through_GUI:
-            self.name = input(pre+"Vad vill du bli kallad?\n")
-        else:
-            text_input_boxes = create_buttons(NAME_INPUT_SRC)
-            text_input_boxes[0].update(pre+"Vad vill du bli kallad?")
-            text_input_boxes[1].update("Spelare"+str(self.instances))
-            self.name = get_text_input_via_gui(dis, text_input_boxes[0], text_input_boxes[1])
-    def make_move(self, piles):
+        text_input_boxes = create_buttons(NAME_INPUT_SRC)
+        text_input_boxes[0].update(pre+"Vad vill du bli kallad?")
+        text_input_boxes[1].update("")
+        self.name = get_text_input_via_gui(dis, text_input_boxes[0], text_input_boxes[1])
+    def make_move(self, piles, dis, board, board_buttons, board_header, logo):
+        "Checks if move exists. Asks user for a move and then performs it."
         if not [i for i in piles if i]:
             return False
-        ind = get_inp(inp_range(1,len(piles)+1)+((lambda i: piles[int(i)-1],"Du får inte välja en tom hög. Försök igen"),),
-            "Från vilken hög vill du plocka?",
-            conv = int) - 1
-        amount = get_inp(inp_range(1,piles[ind]+1),
-        "Hur många marker vill du ta bort?", conv=int)
-        piles[ind] -= amount
+        #Handy short cuts
+        def talk(mssg):
+            board_header.update(mssg)
+            board_header.draw(dis)
+            pygame.display.update()
+        reshape_options = lambda options, pile_ind : list(board_buttons) + [marker for marker in options if marker.pile_index == pile_ind]
+        draw_board(dis, board, (), logo, board_header)
+        #Build list of markers
+        all_markers = []
+        for pile in board.piles:
+            for marker in pile.marker_list:
+                all_markers.append(marker)
+        removed = [] #List of lists containing every removed marker in each event
+        options = []
+        def remove(index):
+            "Removes a marker indexed in options, from options, all_markers and board"            
+            to_remove = options[index]
+            to_remove.clear(dis)
+            del options[index]
+            all_markers.remove(to_remove)
+            board.piles[removed_ind].marker_list.remove(to_remove)
+            board.piles[removed_ind].number -= 1
+            removed.append([to_remove])
+        #Get the first removed marker and the chosen pile
+        ind = get_choice(dis, all_markers)
+        removed_ind = all_markers[ind].pile_index
+        pile_removing_from = board.piles[removed_ind]
+        options = reshape_options(all_markers, removed_ind)
+        ind = options.index(all_markers[ind])
+        remove(ind)
+        draw_board(dis, board, board_buttons, logo, board_header)
+        #Start looping
+        ind = get_choice(dis, options)
+        while ind != 0 or options[0] != board_buttons[0]:
+            if options[0] == board_buttons[0]: #Button features
+                if ind == 0: #Pressed 'Avsluta'
+                    return True
+                elif ind == 1: #Pressed 'Ångra'
+                    pile_removing_from.marker_list.extend(removed[-1])
+                    pile_removing_from.number += len(removed[-1])
+                    all_markers.extend(removed[-1])
+                    options.extend(removed[-1])
+                    del removed[-1]
+                    if len(removed) == 0:
+                        options = all_markers[:]
+                        removed_ind = None
+                elif ind == 2: #Pressed 'Ange antal'
+                    options[2].update("")
+                    #Get the input
+                    number_to_remove = get_text_input_via_gui(dis, board_header, options[2])
+                    while(not number_to_remove.isnumeric() or int(number_to_remove)<=0):
+                        talk("Du måste ange ett positivt heltal.")
+                        number_to_remove = get_text_input_via_gui(dis, board_header, options[2])
+                    talk("Din tur "+self.name)
+                    number_to_remove = int(number_to_remove)
+                    #Actually removing
+                    pile_removing_from.number = max(0, pile_removing_from.number-number_to_remove)
+                    removed_together = pile_removing_from.update_marker_list()
+                    for marker in removed_together:
+                        all_markers.remove(marker)
+                        options.remove(marker)
+                    removed.append(removed_together)
+                else: #Removed a random marker
+                    remove(ind)
+            else: #No Markers removed before
+                removed_ind = options[ind].pile_index
+                pile_removing_from = board.piles[removed_ind]
+                remove(ind)
+                options = reshape_options(options, removed_ind)
+            passing_buttons = board_buttons if options[0]==board_buttons[0] else ()
+            draw_board(dis, board, passing_buttons, logo, board_header)
+            ind = get_choice(dis, options)
+        piles[removed_ind] = pile_removing_from.number
         return True
-#Functions for controlling indata and outdata via keyboard
-def get_inp(conds, txt1, end="\n", conv=lambda x:x):
-        """Keeps asking the user for input untill given a value that fulfills all conds.
-         Takes an ordered iterable object of pairs with conditions and corresponding error messages that are complemented with end.
-         Each condition function has to be capable of taking arbitrary string inputs that has passed all previous conditions."""
-        ask_str = txt1
-        while True:
-            res = input(ask_str+end)
-            is_legit = True
-            for cond, err in conds:
-                if not cond(res):
-                    is_legit = False
-                    ask_str = err
-                    break
-            if is_legit:
-                break
-        return conv(res)         
-def inp_range(a,b):
-    """Generates a function-error-messages tuple used in get_inp to get integer inputs satisfying a<=x<b."""
-    isInt = lambda x:x.isnumeric()
-    inRange = lambda x:a<=int(x)<b
-    return ( (isInt, "Du måste ange ett heltal. Försök igen."),\
-    (inRange,"Du måste ange ett tal mellan {0} och {1}. Försök igen.".format(a,b-1)) )
-def inp_opts(opts):
-    """Generates a function-error-messages tuple used in get_inp to get input that matches one of the options in opts."""
-    isOption = lambda x:x in opts
-    return ((isOption, "Det var inte ett alternativ. Ange något av"+opts.__str__()[1:-1]),)
-def print_board(piles, turn):
-    """Prints the board on R-form in the terminal."""
-    print("Runda nr "+str(turn))
-    print("Nuvarande Bräde")
-    print("="*50)
-    for i in range(len(piles)):
-        print(("H{0}: "+"R"*piles[i]).format(i+1))
-    print("="*50)
+
 
 #Classes and Functions for the GUI
 class GuiOption:
     """Describes the size and text of a button."""
     def __init__(self, pos, dim, color, txt, font_size=30, txt_color=BLACK):
-        "Inits its Rect obj. and a surface obj. describing the text."
+        "Inits its Rect obj. and a surface obj. describing the text. pos of center"
         (x,y), (w,h) = pos, dim
         self.rect = pygame.Rect(x,y,w,h)
         self.rect.center = (x,y)
@@ -117,7 +133,20 @@ class GuiOption:
         self.text_color = txt_color
         self.font_size = font_size
         self.preferred_width = w
+        self.preferred_height = h
+        self.COLOR = color
         self.update(txt)
+    def hover(self, dis):
+        "Alternates objects color to hovered mode."
+        if self.color == WHITE:
+            self.color = tuple([(7*c)//10 for c in self.color])
+        else:
+            self.color = tuple(min(255, c+80) for c in self.color)
+        self.draw(dis)
+    def unhover(self, dis):
+        "Changes color back to COLOR"
+        self.color = self.COLOR
+        self.draw(dis)
     def update_txtIMgPos(self):
         "Assures that its text-image is centered"
         marginx = (self.rect.w-self.txtImg.get_width())//2
@@ -149,13 +178,111 @@ class GuiOption:
     def clear(self, dis):
         "Erases itself from screen."
         pygame.draw.rect(dis, BACKGROUND, self.rect)
+class Marker:
+    "Contains color, radius and position."
+    def __init__(self, center, size, color, pile_index):
+        self.color = color
+        self.COLOR = color #Constant - original color
+        self.center = center
+        self.size = size
+        self.pile_index = pile_index #Index telling which pile this marker lies in
+    def draw(self, dis):
+        "Draws itself."
+        pygame.draw.circle(dis, self.color, self.center, self.size)
+    def covers(self, pos):
+        x,y = pos
+        x0, y0 = self.center
+        return self.size*self.size > (x-x0)*(x-x0)+(y-y0)*(y-y0)
+    def clear(self, dis):
+        pygame.draw.circle(dis, BACKGROUND, self.center, self.size)
+    def hover(self, dis):
+        "Alternates objects color to hovered mode."
+        if self.color == WHITE:
+            self.color = tuple([(7*c)//10 for c in self.color])
+        else:
+            self.color = tuple(min(255, c+80) for c in self.color)
+        self.draw(dis)
+    def unhover(self, dis):
+        "Changes color back to COLOR"
+        self.color = self.COLOR
+        self.draw(dis)
 
-def draw_pile(pos, n, color):
-    "Draws a pile."
-    pass
-def draw_board(piles, dis):
-    "Draws the board with current status during a game."
-    pass
+class Pile:
+    "Consists of a number box and a list of markers."
+    def __init__(self, X_center, y_bottom, color, width, height, number, index, font_size=20):
+        "Inits pile."
+        n_width = min(100, width)
+        self.X_center = X_center
+        self.y_bottom = y_bottom-n_width
+        self.width = width
+        self.height = height-n_width
+        self.number = number
+        self.color = color
+        self.index = index
+        self.number_box = GuiOption((X_center,y_bottom-(3*n_width)//4), (n_width, n_width//2), BACKGROUND, str(number), font_size, color)
+        self.index_box = GuiOption((X_center, y_bottom-n_width//4), (n_width,n_width//2), BACKGROUND, "Hög nr"+str(index+1), font_size, BLACK)
+        self.marker_list = [] #List containing all markers in this pile. Starts empty untill needed.
+        self.create_marker_list()
+
+    def create_marker_list(self):
+        "Fills the marker_list with markers"
+        def add(r, relx, rely):
+            pos = (self.X_center-self.width//2+r+relx+2, self.y_bottom-r-rely)
+            self.marker_list.append(Marker(pos, r, self.color, self.index))
+        size = self.find_size()
+        relx, rely = 0, 0
+        while len(self.marker_list)<self.number:
+            add(size//2, relx, rely)
+            relx += size
+            if relx > self.width-size:
+                relx = 0
+                rely += size  
+    def find_size(self):
+        "Finds appropriate size of markers, given self.number"
+        can_fit = lambda size : ((self.width-5)//size)*((self.height-5)//size) >= self.number
+        max_size = MARKER_MAX
+        high, low = max_size, 1
+        while high-low>1:
+            max_size = (high+low)//2
+            if can_fit(max_size): #option, but maybe non-optimal
+                low = max_size
+            else:
+                high = max_size
+        return low
+
+    def update_marker_list(self):
+        "Removes markers from its list after a bot-move."
+        res = []
+        while(len(self.marker_list)>self.number):
+            removing = self.marker_list[-1]
+            res.append(removing)
+            del self.marker_list[-1]
+        return res
+    def draw(self,dis):
+        for marker in self.marker_list:
+            marker.draw(dis)
+        self.number_box.update(str(self.number))
+        self.number_box.draw(dis)
+        self.index_box.draw(dis)
+
+class Board:
+    "Creates a number of piles on a row."
+    def __init__(self, piles):
+        "Inits a board based on the starting piles."
+        n = len(piles)
+        self.piles = []
+        pile_height = HEIGHT-LOGO_HEIGHT-BOTTOM_HEIGHT
+        pile_width = WIDTH//n
+        for i in range(len(piles)):
+            color = random.choice(COLORS) 
+            num_markers = piles[i]
+            self.piles.append(Pile(i*pile_width+pile_width//2, LOGO_HEIGHT+pile_height, color, pile_width, pile_height,
+                num_markers, i, font_size=20) )         
+    def draw(self, dis):
+        "Draws itself. No display update!"
+        for pile in self.piles:
+            pile.draw(dis)
+    
 def draw_menu(dis, buttons, logo=None, header=None):
     "Draws the start menu."
     dis.fill(BACKGROUND)
@@ -168,7 +295,7 @@ def create_buttons(src, start=0, end=0):
     """Reads all non-# lines in src and returns a tuple of GuiOptions."""
     res = []
     counter = 0
-    with open(src) as file:
+    with open(src, encoding='utf-8') as file:
         for line in file:
             if line[0]=='#': continue
             counter += 1
@@ -192,30 +319,20 @@ def create_buttons(src, start=0, end=0):
 def get_choice(dis, buttons):
     """Makes user chose a button. Returns index of that button in buttons"""
     clock = pygame.time.Clock()
-    light = (80,80,80)
-    is_inside = None
     while True:
         #Change to lighter color when mouse hovers over button
         mouse_pos = pygame.mouse.get_pos()
         for i in range(len(buttons)):
             button = buttons[i]
-            if not is_inside==i and button.covers(mouse_pos):
-                new_col = [0,0,0]
-                last_old = button.color[:]
-                for r in range(3): new_col[r] = min(255,button.color[r]+light[r])
-                button.color = tuple(new_col)
-                is_inside = i
-                button.draw(dis)
-                pygame.display.update()
-            if is_inside==i and not button.covers(mouse_pos):
-                button.color = last_old[:]
-                is_inside = -1
-                button.draw(dis)
-                pygame.display.update()
+            if button.covers(mouse_pos):
+                button.hover(dis)
+            else:
+                button.unhover(dis)
+        pygame.display.update()   
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                return -1
+                return None
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
                 for i in range(len(buttons)):
@@ -243,32 +360,49 @@ def get_text_input_via_gui(dis, header, input_box):
                     input_box.draw(dis)
                     pygame.display.update()
         clock.tick(30)
+def draw_board(dis, board, buttons, logo, header=None):
+    dis.fill(BACKGROUND)
+    header.draw(dis)
+    logo.draw(dis)
+    board.draw(dis)
+    for button in buttons:
+        button.draw(dis)
+    pygame.display.update()
             
 #Controlling Functions
 #These control the program flow
-def get_data(dis, buttons, terminal_txt, talking_through_GUI):
-    """Waits untill user choses button / number in 0...len(buttons).
-    Channel determines if it's through terminal(0) or GUI (1). Only used in menu."""
-    if talking_through_GUI:
-        return get_choice(dis, buttons)
-    return get_inp(inp_opts(tuple(str(i+1) for i in range(len(buttons))) ), terminal_txt, conv=lambda x:int(x)-1)
+def talk_(dis, mssg, header):
+    header.update(mssg)
+    header.draw(dis)
+    pygame.display.update()
 
-def game(players, piles, dis):
+def game(players, piles, dis, logo):
     """Starts and controls a game given the two player objects facing each other.
     Returns the index of the winning player."""
+    #Useful variables
     turn = 0
+    board_buttons = create_buttons(BOARD_SRC)
+    board_header = create_buttons(HEADER_SRC, 1)[0]
+    board = Board(piles)
+    #Communication
+    def talk(mssg):
+        talk_(dis, mssg, board_header)
     while True:
         phasing = players[turn%2]
         if type(phasing) == User:
-            print_board(piles, turn+1)
-        print("Din tur "+phasing.name)
-        if not phasing.make_move(piles):
-            print("...nej visst du har förlorat!")
+            draw_board(dis, board, board_buttons, logo, board_header)
+        talk("Din tur "+phasing.name)
+        
+        if not phasing.make_move(piles, dis, board, board_buttons, board_header, logo):
+            for button in board_buttons:
+                button.clear(dis)
+            pygame.display.update()
+            talk("")
             return (turn+1)%2
-        print("Ok")
+        talk("Ok")
         turn += 1
 
-def main():
+def main(talking_through_GUI=True):
     """Interacts with user to start games in different game modes."""
     #initiate Pygame and dis
     pygame.init()
@@ -280,43 +414,44 @@ def main():
     yes_no_buttons = create_buttons(YN_SRC,0,2)
     #Logo
     logo = GuiOption((WIDTH//2, LOGO_HEIGHT//2), (WIDTH, LOGO_HEIGHT), LOGO_COLOR, "NIM!", LOGO_FONT_SIZE, LOGO_TEXT_COLOR)
+    #header
+    yn_header = create_buttons(HEADER_SRC, 0, 1)[0]
+    game_over_header1, game_over_header2 = create_buttons(HEADER_SRC, 2)
     #Settings Variables
     game_mode = 1
-    talking_through_GUI = 1
     while game_mode: #Keep going untill user choses 0 (next line)
         draw_menu(dis, menu_buttons, logo)
-        game_mode = get_data(dis, menu_buttons,
-            "Vill du spela mot en Enkel Dator(1), Svår Dator(2),mot en annan Människa(3) eller vill du avsluta(4)?",
-            talking_through_GUI)+1; game_mode%=4
+        game_mode = get_choice(dis, menu_buttons)+1
+        game_mode %= 4
         if not game_mode:
             break
         if game_mode != 3:
-            draw_menu(dis, yes_no_buttons, logo)
-            wants_to_start = get_data(dis, yes_no_buttons,
-            "Så här ser startläget ut. "+START_LIST.__str__()[1:-1]+" Vill du börja? Ja(1) Nej(2)",
-            talking_through_GUI)
+            yn_buttons = create_buttons(YN_SRC)
+            board = Board(START_LIST)
+            draw_board(dis, board, yn_buttons, logo, yn_header)
+            wants_to_start = get_choice(dis, yn_buttons)
             draw_menu(dis, (), logo) #Clear buttons
             BotGen = RandomBot if game_mode == 1 else SmartBot
-            user = User(False, talking_through_GUI, dis)
+            user = User(False, dis)
             players = (user, BotGen()) if wants_to_start else (BotGen(), user)
+            user = None
         else:
             draw_menu(dis, (), logo) #Clear buttons
-            players = (User(True, talking_through_GUI, dis), User(True, talking_through_GUI, dis))
+            players = (User(True, dis), User(True, dis))
         keep_playing = True
 
         while keep_playing:  #Loop that deals with each game
             piles = list(START_LIST)
-            winner = game(players, piles, dis)
+            winner = game(players, piles, dis, logo)
             if type(players[winner]) == User:
-                print("Grattis "+players[winner].name)
+                talk_(dis, "Grattis du vann "+players[winner].name, game_over_header1)
             else:
-                print("Synd. Du förlorade. Bättre lycka nästa gång "+players[(winner+1)%2].name+'!')
-            keep_playing = get_inp(inp_opts(('1','2')), "Vill du spela igen? Ja(1) Nej(2)", conv=lambda x:int(x)%2)
+                talk_(dis, "Synd. Du förlorade. Bättre lycka nästa gång "+players[(winner+1)%2].name+'!', game_over_header1)
+            talk_(dis, "Vill du spela igen?", game_over_header2)
+            keep_playing = get_choice(dis, yn_buttons)
         players = ()
     print("Tack. Hej då!")
 if __name__ == "__main__":
     main()
-    
-
     
 
