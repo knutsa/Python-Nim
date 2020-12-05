@@ -1,5 +1,5 @@
 import random
-from bots import Player, SmartBot, RandomBot
+from bots import Player, SmartBot, RandomBot, generate_board
 #Constants
 START_LIST = (1,3,5,7)
 
@@ -87,21 +87,18 @@ def main():
             conv=int); game_mode%=4
         keep_playing = bool(game_mode) #Sets to True in All cases except when 0 was chosen, in which case program should exit
         if game_mode != 3 and game_mode:
-            wants_to_start = get_inp(inp_opts(('1','2')),
-            "Så här ser startläget ut. "+START_LIST.__str__()[1:-1]+" Vill du börja? Nej(1) Ja(2)",
-            conv=int)-1
             BotGen = RandomBot if game_mode == 1 else SmartBot
-            players = (User(), BotGen()) if wants_to_start else (BotGen(), User())
+            players = (User(), BotGen())
         elif game_mode:
                 players = (User(True), User(True))
 
         while keep_playing:  #Loop that deals with each game
-            piles = list(START_LIST)
-            if game_mode!=3 and (players[0].wins+players[1].wins): #Have played before, might want to change turns
+            piles = generate_board()
+            if game_mode!=3:
                 user_ind = 0 if type(players[0])==User else 1
                 bot_ind = (user_ind+1)%2
                 wants_to_start = get_inp(inp_opts(('1','2')),
-                    "Så här ser startläget ut. "+START_LIST.__str__()[1:-1]+" Vill du börja? Nej(1) Ja(2)",
+                    "Så här ser startläget ut. "+piles.__str__()[1:-1]+" Vill du börja? Nej(1) Ja(2)",
                     conv=int)-1
                 players = players[user_ind], players[bot_ind] if wants_to_start else players[bot_ind], players[user_ind]
             winner = game(players, piles)

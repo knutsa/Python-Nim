@@ -114,7 +114,7 @@ class User(Player):
                 remove(ind)
                 options = reshape_options(options, removed_ind)
             passing_buttons = board_buttons if options[0]==board_buttons[0] else ()
-            options[2].update("Ange antal")
+            board_buttons[2].update("Ange antal")
             draw_board(dis, board, passing_buttons, logo, board_header)
             ind = get_choice(dis, options)
         piles[removed_ind] = pile_removing_from.number
@@ -427,25 +427,19 @@ def main(talking_through_GUI=True):
         game_mode %= 4
         if not game_mode:
             break
-        piles = generate_board()
-        if game_mode != 3:
-            yn_buttons = create_buttons(YN_SRC)
-            board = Board(piles)
-            draw_board(dis, board, yn_buttons, logo, yn_header)
-            wants_to_start = get_choice(dis, yn_buttons)
-            BotGen = RandomBot if game_mode == 1 else SmartBot
-            user = User(False, dis)
-            players = (user, BotGen()) if wants_to_start else (BotGen(), user)
-            user = None
+        draw_menu(dis, (), logo) #Clear buttons
         if game_mode == 3:
-            draw_menu(dis, (), logo) #Clear buttons
             players = (User(True, dis), User(True, dis))
+        else:
+            BotGen = RandomBot if game_mode == 1 else SmartBot
+            players = (User(False, dis), BotGen())
+
         keep_playing = True
 
         while keep_playing:  #Loop that deals with each game
-            if players[0].wins + players[1].wins:
-                piles = generate_board()
-                board = Board(piles)
+            piles = generate_board()
+            board = Board(piles)
+            if game_mode != 3:
                 draw_board(dis, board, yn_buttons, logo, yn_header)
                 wants_to_start = get_choice(dis, yn_buttons)
                 user_ind = 0 if type(players[0]) == User else 1
