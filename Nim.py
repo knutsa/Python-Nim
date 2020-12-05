@@ -1,5 +1,5 @@
 import pygame, random, os, math
-from bots import Player, SmartBot, RandomBot
+from bots import Player, SmartBot, RandomBot, generate_board
 #Constants
 START_LIST =  (1,3,5,7, 9, 11, 4)
 #
@@ -114,6 +114,7 @@ class User(Player):
                 remove(ind)
                 options = reshape_options(options, removed_ind)
             passing_buttons = board_buttons if options[0]==board_buttons[0] else ()
+            options[2].update("Ange antal")
             draw_board(dis, board, passing_buttons, logo, board_header)
             ind = get_choice(dis, options)
         piles[removed_ind] = pile_removing_from.number
@@ -129,6 +130,10 @@ class GuiOption:
         self.rect = pygame.Rect(x,y,w,h)
         self.rect.center = (x,y)
         self.color = color
+        if color == WHITE:
+            self.hover_color = tuple([(7*c)//10 for c in self.color])
+        else:
+            self.hover_color = tuple(min(255, c+100) for c in self.color)
         self.text = txt
         self.text_color = txt_color
         self.font_size = font_size
@@ -138,10 +143,7 @@ class GuiOption:
         self.update(txt)
     def hover(self, dis):
         "Alternates objects color to hovered mode."
-        if self.color == WHITE:
-            self.color = tuple([(7*c)//10 for c in self.color])
-        else:
-            self.color = tuple(min(255, c+80) for c in self.color)
+        self.color = self.hover_color
         self.draw(dis)
     def unhover(self, dis):
         "Changes color back to COLOR"
@@ -160,8 +162,8 @@ class GuiOption:
         pygame.draw.rect(dis, self.color, self.rect)
         dis.blit(self.txtImg, self.txtImgPos)
     def update(self, text, position=0):
-        """Updates its text value as well as the position, and value of its textImg attribute.
-        By default it erases the old text. position 1 means append text. Otherwise (-1) append text at beginning."""
+        """Updates its text value either by creating a new(default) or appending(position=1) at beginning or end(position=-1).
+        Also updates position and value of its textImg attribute according to new textvalue."""
         if not position:
             self.text = text
         else:
@@ -183,6 +185,10 @@ class Marker:
     def __init__(self, center, size, color, pile_index):
         self.color = color
         self.COLOR = color #Constant - original color
+        if color == WHITE:
+            self.hover_color = tuple([(7*c)//10 for c in self.color])
+        else:
+            self.hover_color = tuple(min(255, c+80) for c in self.color)
         self.center = center
         self.size = size
         self.pile_index = pile_index #Index telling which pile this marker lies in
@@ -197,10 +203,7 @@ class Marker:
         pygame.draw.circle(dis, BACKGROUND, self.center, self.size)
     def hover(self, dis):
         "Alternates objects color to hovered mode."
-        if self.color == WHITE:
-            self.color = tuple([(7*c)//10 for c in self.color])
-        else:
-            self.color = tuple(min(255, c+80) for c in self.color)
+        self.color = self.hover_color
         self.draw(dis)
     def unhover(self, dis):
         "Changes color back to COLOR"
@@ -332,7 +335,7 @@ def get_choice(dis, buttons):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                return None
+                exit("Hej")
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
                 for i in range(len(buttons)):
@@ -340,7 +343,7 @@ def get_choice(dis, buttons):
                         return i
         clock.tick(30)
 def get_text_input_via_gui(dis, header, input_box):
-    "Takes text input via GUI. Does no input controls."
+    "Takes text input via GUI. Doesn't validate any input."
     clock = pygame.time.Clock()
     header.draw(dis)
     input_box.draw(dis)
@@ -376,14 +379,13 @@ def talk_(dis, mssg, header):
     header.draw(dis)
     pygame.display.update()
 
-def game(players, piles, dis, logo):
+def game(players, piles, board, dis, logo):
     """Starts and controls a game given the two player objects facing each other.
     Returns the index of the winning player."""
     #Useful variables
     turn = 0
     board_buttons = create_buttons(BOARD_SRC)
     board_header = create_buttons(HEADER_SRC, 1)[0]
-    board = Board(piles)
     #Communication
     def talk(mssg):
         talk_(dis, mssg, board_header)
@@ -411,7 +413,7 @@ def main(talking_through_GUI=True):
     #Create GuiOptions
     #Buttontuples
     menu_buttons = create_buttons(MENU_SRC)
-    yes_no_buttons = create_buttons(YN_SRC,0,2)
+    yn_buttons = create_buttons(YN_SRC,0,2)
     #Logo
     logo = GuiOption((WIDTH//2, LOGO_HEIGHT//2), (WIDTH, LOGO_HEIGHT), LOGO_COLOR, "NIM!", LOGO_FONT_SIZE, LOGO_TEXT_COLOR)
     #header
@@ -425,24 +427,33 @@ def main(talking_through_GUI=True):
         game_mode %= 4
         if not game_mode:
             break
+        piles = generate_board()
         if game_mode != 3:
             yn_buttons = create_buttons(YN_SRC)
-            board = Board(START_LIST)
+            board = Board(piles)
             draw_board(dis, board, yn_buttons, logo, yn_header)
             wants_to_start = get_choice(dis, yn_buttons)
-            draw_menu(dis, (), logo) #Clear buttons
             BotGen = RandomBot if game_mode == 1 else SmartBot
             user = User(False, dis)
             players = (user, BotGen()) if wants_to_start else (BotGen(), user)
             user = None
-        else:
+        if game_mode == 3:
             draw_menu(dis, (), logo) #Clear buttons
             players = (User(True, dis), User(True, dis))
         keep_playing = True
 
         while keep_playing:  #Loop that deals with each game
-            piles = list(START_LIST)
-            winner = game(players, piles, dis, logo)
+            if players[0].wins + players[1].wins:
+                piles = generate_board()
+                board = Board(piles)
+                draw_board(dis, board, yn_buttons, logo, yn_header)
+                wants_to_start = get_choice(dis, yn_buttons)
+                user_ind = 0 if type(players[0]) == User else 1
+                if (wants_to_start+1)%2 != user_ind: #Should swap order
+                    players = players[1], players[0]
+                draw_menu(dis, (), logo) #Clear buttons
+            winner = game(players, piles, board, dis, logo)
+            players[winner].wins += 1
             if type(players[winner]) == User:
                 talk_(dis, "Grattis du vann "+players[winner].name, game_over_header1)
             else:
