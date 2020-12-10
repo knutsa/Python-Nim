@@ -9,10 +9,12 @@ START_LIST = (1,3,5,7)
 class User(Player):
     "User Player. Makes moves based on instructions from the user."
     def __init__(self, another_user=False):
+        "Inits User object. Asks the user for a namne. Also keeps track of the number of active players."
         type(self).instances += 1
         pre = "Spelare"+str(self.instances)+" " if another_user else ""
         self.name = input(pre+"Vad vill du bli kallad?\n")
     def make_move(self, piles):
+        "Checks if a move exists. In that case asks user for a valid move and returns true."
         if not [i for i in piles if i]:
             return False
         ind = get_inp(inp_range(1,len(piles)+1)+((lambda i: piles[int(i)-1],"Du får inte välja en tom hög. Försök igen"),),
@@ -26,9 +28,11 @@ class User(Player):
 #Input -- Output - terminal
 #Functions for controlling indata and outdata via keyboard
 def get_inp(conds, txt1, end="\n", conv=lambda x:x):
-        """Keeps asking the user for input untill given a value that fulfills all conds.
-         Takes an ordered iterable object of pairs with conditions and corresponding error messages that are complemented with end.
-         Each condition function has to be capable of taking arbitrary string inputs that has passed all previous conditions."""
+        """
+            Keeps asking the user for input untill given a value that fulfills all conditions.
+            Takes an ordered iterable object of pairs with conditions and corresponding error messages that are complemented with end.
+            Each condition function has to be capable of taking arbitrary string inputs that has passed all previous conditions.
+         """
         ask_str = txt1
         while True:
             res = input(ask_str+end)
@@ -64,8 +68,10 @@ def print_board(piles, turn):
 #Main Functions
 #These control the game flow
 def game(players, piles):
-    """Starts and controls a game given the two player objects facing each other.
-    Returns the index of the winning player."""
+    """
+        Starts and controls a game given the two player objects facing each other.
+        Returns the index of the winning player.
+    """
     turn = 0
     while True:
         phasing = players[turn%2]

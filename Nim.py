@@ -1,7 +1,7 @@
 import pygame, random, os, math
 from bots import Player, SmartBot, RandomBot, generate_board
 #Constants
-START_LIST =  (1,3,5,7, 9, 11, 4)
+START_LIST =  (1,3,5,7, 9, 11, 4) #No longer used
 #
 #Pygame Constants
 WIDTH, HEIGHT = 700, 700 #For the pygame display
@@ -33,6 +33,7 @@ MARKER_MAX = 25
 class User(Player):
     "User Player. Makes moves based on instructions from the user."
     def __init__(self, another_user=False, dis=None):
+        "Inits User object. Asks the user for a namne. Also keeps track of the number of active players."
         type(self).instances += 1
         pre = "Spelare"+str(self.instances)+" " if another_user else ""
         #Get your name:
@@ -123,9 +124,15 @@ class User(Player):
 
 #Classes and Functions for the GUI
 class GuiOption:
-    """Describes the size and text of a button."""
+    '''
+        This object describes a graphical rectangle with text inside. It can be used as a button
+        or simply a text header.
+    '''
     def __init__(self, pos, dim, color, txt, font_size=30, txt_color=BLACK):
-        "Inits its Rect obj. and a surface obj. describing the text. pos of center"
+        '''
+            Inits the object. This creates a pygame rect-object and a surface object.
+            pos = position of ceneter
+        '''
         (x,y), (w,h) = pos, dim
         self.rect = pygame.Rect(x,y,w,h)
         self.rect.center = (x,y)
@@ -146,7 +153,7 @@ class GuiOption:
         self.color = self.hover_color
         self.draw(dis)
     def unhover(self, dis):
-        "Changes color back to COLOR"
+        "Changes color back to original COLOR"
         self.color = self.COLOR
         self.draw(dis)
     def update_txtIMgPos(self):
@@ -162,8 +169,10 @@ class GuiOption:
         pygame.draw.rect(dis, self.color, self.rect)
         dis.blit(self.txtImg, self.txtImgPos)
     def update(self, text, position=0):
-        """Updates its text value either by creating a new(default) or appending(position=1) at beginning or end(position=-1).
-        Also updates position and value of its textImg attribute according to new textvalue."""
+        """
+            Updates its text value either by creating a new(default) or appending(position=1) at beginning or end(position=-1).
+            Also updates position and value of its textImg attribute according to the new textvalue.
+        """
         if not position:
             self.text = text
         else:
@@ -183,6 +192,7 @@ class GuiOption:
 class Marker:
     "Contains color, radius and position."
     def __init__(self, center, size, color, pile_index):
+        "Inits a marker"
         self.color = color
         self.COLOR = color #Constant - original color
         if color == WHITE:
@@ -196,22 +206,24 @@ class Marker:
         "Draws itself."
         pygame.draw.circle(dis, self.color, self.center, self.size)
     def covers(self, pos):
+        "Checks if a point is inside itself."
         x,y = pos
         x0, y0 = self.center
         return self.size*self.size > (x-x0)*(x-x0)+(y-y0)*(y-y0)
     def clear(self, dis):
+        "Erases itself from screen."
         pygame.draw.circle(dis, BACKGROUND, self.center, self.size)
     def hover(self, dis):
         "Alternates objects color to hovered mode."
         self.color = self.hover_color
         self.draw(dis)
     def unhover(self, dis):
-        "Changes color back to COLOR"
+        "Changes color back to original COLOR"
         self.color = self.COLOR
         self.draw(dis)
 
 class Pile:
-    "Consists of a number box and a list of markers."
+    "Describes one pile of markers. Consists of a number box and a list of markers."
     def __init__(self, X_center, y_bottom, color, width, height, number, index, font_size=20):
         "Inits pile."
         n_width = min(100, width)
@@ -228,7 +240,7 @@ class Pile:
         self.create_marker_list()
 
     def create_marker_list(self):
-        "Fills the marker_list with markers"
+        "Fills its marker_list with markers."
         def add(r, relx, rely):
             pos = (self.X_center-self.width//2+r+relx+2, self.y_bottom-r-rely)
             self.marker_list.append(Marker(pos, r, self.color, self.index))
@@ -254,7 +266,7 @@ class Pile:
         return low
 
     def update_marker_list(self):
-        "Removes markers from its list after a bot-move."
+        "Removes markers from its list after a player move."
         res = []
         while(len(self.marker_list)>self.number):
             removing = self.marker_list[-1]
@@ -269,7 +281,9 @@ class Pile:
         self.index_box.draw(dis)
 
 class Board:
-    "Creates a number of piles on a row."
+    '''
+        Describes the board. Contains a number of piles.
+    '''
     def __init__(self, piles):
         "Inits a board based on the starting piles."
         n = len(piles)
@@ -295,7 +309,12 @@ def draw_menu(dis, buttons, logo=None, header=None):
         button.draw(dis)
     pygame.display.update()
 def create_buttons(src, start=0, end=0):
-    """Reads all non-# lines in src and returns a tuple of GuiOptions."""
+    """
+        Used to create GuiOption objects based on data stored in separate text-files.
+        Reads all non-# lines in src and returns a tuple of GuiOptions.
+        If start and/or end are specified this specifies the first line to be read,
+        and the line following the last line to be read.
+    """
     res = []
     counter = 0
     with open(src, encoding='utf-8') as file:
@@ -375,13 +394,16 @@ def draw_board(dis, board, buttons, logo, header=None):
 #Controlling Functions
 #These control the program flow
 def talk_(dis, mssg, header):
+    "A one-liner to print text on the screen."
     header.update(mssg)
     header.draw(dis)
     pygame.display.update()
 
 def game(players, piles, board, dis, logo):
-    """Starts and controls a game given the two player objects facing each other.
-    Returns the index of the winning player."""
+    """
+        Starts and controls a game given the two player objects facing each other.
+        Returns the index of the winning player.
+    """
     #Useful variables
     turn = 0
     board_buttons = create_buttons(BOARD_SRC)
@@ -404,7 +426,7 @@ def game(players, piles, board, dis, logo):
         talk("Ok")
         turn += 1
 
-def main(talking_through_GUI=True):
+def main():
     """Interacts with user to start games in different game modes."""
     #initiate Pygame and dis
     pygame.init()

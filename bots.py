@@ -3,23 +3,27 @@ import random, math
 #Each has method for making move, these take care of updating the list describing the piles.
 # As well as storing num of players and names
 def get_nim_sum(l):
+    "Returns the nim-sum/bitwise xor result of an iterable object."
     sum = 0
     for x in l:
         sum ^= x
     return sum
 
 def generate_board(max_length = 10, max_pile_height = 20):
-    "Generates a starting board."
+    "Generates a random starting board."
     length = random.randint(2,max_length)
     piles = [random.randint(1,max_pile_height) for i in range(length)]
     return piles
 
 class Player:
+    "Super class to the objects used in games. Counts wins and instances."
     wins = 0
     instances = 0
     def __init__(self):
+        "Inits a player. Keeps of track of the number of active players."
         type(self).instances += 1
     def __del__(self):
+        "Reduces number of players when one is deleted."
         type(self).instances -= 1
 class RandomBot(Player):
     "Computer Player making moves completely at random"
