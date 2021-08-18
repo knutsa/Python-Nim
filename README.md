@@ -5,7 +5,7 @@ P-uppgift KTH matte spelet Nim via GUI och terminal
 pipenv install
 
 ### GUI
-pipenv python Nim.py
+pipenv run python Nim.py
 
 ### Terminal
-pipenv python nim_terminal.py
+pipenv run python nim_terminal.py
